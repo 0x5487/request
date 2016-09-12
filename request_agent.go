@@ -25,20 +25,23 @@ func newRequestAgent(method, url string) *RequestAgent {
 		},
 		Timeout: time.Duration(30) * time.Second,
 	}
-	return &RequestAgent{
+	agent := &RequestAgent{
 		client: client,
 		Method: method,
 		URL:    url,
+		Header: map[string]string{},
 	}
+	agent.Header["Accept"] = "application/json"
+	return agent
 }
 
 func (source *RequestAgent) Set(key, val string) *RequestAgent {
-	source.Header["key"] = val
+	source.Header[key] = val
 	return source
 }
 
-func (source *RequestAgent) Query(data string) *RequestAgent {
-	source.QueryStr = data
+func (source *RequestAgent) Query(querystring string) *RequestAgent {
+	source.QueryStr = querystring
 	return source
 }
 
@@ -48,7 +51,8 @@ func (source *RequestAgent) End() (*Response, []error) {
 	}
 
 	// create new request
-	outReq, err := http.NewRequest(source.Method, source.URL, bytes.NewReader(source.Body))
+	url := source.URL + source.QueryStr
+	outReq, err := http.NewRequest(source.Method, url, bytes.NewReader(source.Body))
 	if err != nil {
 		source.Errors = append(source.Errors, err)
 		return nil, source.Errors
