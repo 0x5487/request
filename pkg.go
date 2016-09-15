@@ -1,5 +1,9 @@
 package request
 
+func New(method, url string) *RequestAgent {
+	return newRequestAgent(method, url)
+}
+
 func GET(url string) *RequestAgent {
 	return newRequestAgent("GET", url)
 }

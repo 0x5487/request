@@ -40,6 +40,16 @@ func (source *RequestAgent) Set(key, val string) *RequestAgent {
 	return source
 }
 
+func (source *RequestAgent) SendBytes(bytes []byte) *RequestAgent {
+	source.Body = bytes
+	return source
+}
+
+func (source *RequestAgent) Send(body string) *RequestAgent {
+	source.Body = []byte(body)
+	return source
+}
+
 func (source *RequestAgent) Query(querystring string) *RequestAgent {
 	source.QueryStr = querystring
 	return source
