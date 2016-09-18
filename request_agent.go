@@ -2,36 +2,51 @@ package request
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"time"
 )
 
-type RequestAgent struct {
-	client   *http.Client
-	URL      string
-	Method   string
-	Header   map[string]string
-	QueryStr string
-	Body     []byte
-	Errors   []error
-}
+var (
+	_httpClient *http.Client
+)
 
-func newRequestAgent(method, url string) *RequestAgent {
-	client := &http.Client{
+func init() {
+	_httpClient = &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: 20,
 		},
 		Timeout: time.Duration(30) * time.Second,
 	}
+}
+
+type RequestAgent struct {
+	client *http.Client
+	err    error
+
+	URL      string
+	Method   string
+	Header   map[string]string
+	QueryStr string
+	Body     []byte
+}
+
+func newRequestAgent(method, targetURL string) *RequestAgent {
 	agent := &RequestAgent{
-		client: client,
+		client: _httpClient,
 		Method: method,
-		URL:    url,
+		URL:    targetURL,
 		Header: map[string]string{},
 	}
 	agent.Header["Accept"] = "application/json"
+
+	_, err := url.Parse(targetURL)
+	if err != nil {
+		agent.err = err
+	}
 	return agent
 }
 
@@ -45,6 +60,15 @@ func (source *RequestAgent) SendBytes(bytes []byte) *RequestAgent {
 	return source
 }
 
+func (source *RequestAgent) SendJSON(v interface{}) *RequestAgent {
+	b, err := json.Marshal(v)
+	if err != nil {
+		source.err = err
+	}
+	source.Body = b
+	return source
+}
+
 func (source *RequestAgent) Send(body string) *RequestAgent {
 	source.Body = []byte(body)
 	return source
@@ -55,17 +79,16 @@ func (source *RequestAgent) Query(querystring string) *RequestAgent {
 	return source
 }
 
-func (source *RequestAgent) End() (*Response, []error) {
-	if len(source.Errors) > 0 {
-		return nil, source.Errors
+func (source *RequestAgent) End() (*Response, error) {
+	if source.err != nil {
+		return nil, source.err
 	}
 
 	// create new request
 	url := source.URL + source.QueryStr
 	outReq, err := http.NewRequest(source.Method, url, bytes.NewReader(source.Body))
 	if err != nil {
-		source.Errors = append(source.Errors, err)
-		return nil, source.Errors
+		return nil, err
 	}
 
 	// copy Header
@@ -76,8 +99,7 @@ func (source *RequestAgent) End() (*Response, []error) {
 	// send to target
 	resp, err := source.client.Do(outReq)
 	if err != nil {
-		source.Errors = append(source.Errors, err)
-		return nil, source.Errors
+		return nil, err
 	}
 	defer respClose(resp.Body)
 	body, _ := ioutil.ReadAll(resp.Body)
