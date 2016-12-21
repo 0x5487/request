@@ -1,5 +1,7 @@
 package request
 
+import "time"
+
 func New(method, url string) *RequestAgent {
 	return newRequestAgent(method, url)
 }
@@ -18,4 +20,8 @@ func PUT(url string) *RequestAgent {
 
 func DELETE(url string) *RequestAgent {
 	return newRequestAgent("DELETE", url)
+}
+
+func SetTimeout(duration int64) {
+	_httpClient.Timeout = time.Duration(duration) * time.Second
 }

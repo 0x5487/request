@@ -3,8 +3,10 @@ package request
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -12,6 +14,7 @@ import (
 
 var (
 	_httpClient *http.Client
+	ErrTimeout  = errors.New("request: request timeout")
 )
 
 func init() {
@@ -99,6 +102,9 @@ func (source *RequestAgent) End() (*Response, error) {
 	// send to target
 	resp, err := source.client.Do(outReq)
 	if err != nil {
+		if err, ok := err.(net.Error); ok && err.Timeout() {
+			return nil, ErrTimeout
+		}
 		return nil, err
 	}
 	defer respClose(resp.Body)
