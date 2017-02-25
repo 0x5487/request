@@ -108,7 +108,10 @@ func (source *RequestAgent) End() (*Response, error) {
 		return nil, err
 	}
 	defer respClose(resp.Body)
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	result := &Response{}
 	result.setResp(resp)
