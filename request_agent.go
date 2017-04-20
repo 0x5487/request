@@ -64,6 +64,7 @@ func (source *RequestAgent) SendBytes(bytes []byte) *RequestAgent {
 }
 
 func (source *RequestAgent) SendJSON(v interface{}) *RequestAgent {
+	source.Set("Content-Type", "application/json")
 	b, err := json.Marshal(v)
 	if err != nil {
 		source.err = err

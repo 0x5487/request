@@ -34,8 +34,16 @@ if resp.OK {
 
 #### POST example
 ```golang
+form := url.Values{}
+form.Add("grant_type", "password")
+form.Add("client_id", "aaa")
+form.Add("username", "bbb")
+form.Add("password", "ccc")
+body := form.Encode()
+
 resp, err := request.
     POST("/v1/hello").
+    Send(body).
     End()
 if err != nil {
     return nil, err
