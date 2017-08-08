@@ -74,6 +74,7 @@ func (source *RequestAgent) SendJSON(v interface{}) *RequestAgent {
 }
 
 func (source *RequestAgent) Send(body string) *RequestAgent {
+	source.Set("Content-Type", "application/x-www-form-urlencoded")
 	source.Body = []byte(body)
 	return source
 }
