@@ -2,6 +2,7 @@ package request
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,6 +15,7 @@ import (
 
 var (
 	_httpClient *http.Client
+	_timeout    time.Duration
 	ErrTimeout  = errors.New("request: request timeout")
 )
 
@@ -22,8 +24,8 @@ func init() {
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: 20,
 		},
-		Timeout: time.Duration(30) * time.Second,
 	}
+	_timeout = 30 * time.Second
 }
 
 type RequestAgent struct {
@@ -35,6 +37,7 @@ type RequestAgent struct {
 	Header   map[string]string
 	QueryStr string
 	Body     []byte
+	Timeout  time.Duration
 }
 
 func newRequestAgent(method, targetURL string) *RequestAgent {
@@ -45,7 +48,7 @@ func newRequestAgent(method, targetURL string) *RequestAgent {
 		Header: map[string]string{},
 	}
 	agent.Header["Accept"] = "application/json"
-
+	agent.Timeout = _timeout
 	_, err := url.Parse(targetURL)
 	if err != nil {
 		agent.err = err
@@ -55,6 +58,13 @@ func newRequestAgent(method, targetURL string) *RequestAgent {
 
 func (source *RequestAgent) Set(key, val string) *RequestAgent {
 	source.Header[key] = val
+	return source
+}
+
+func (source *RequestAgent) SetTimeout(timeout time.Duration) *RequestAgent {
+	if timeout > 0 {
+		source.Timeout = timeout
+	}
 	return source
 }
 
@@ -89,6 +99,16 @@ func (source *RequestAgent) End() (*Response, error) {
 		return nil, source.err
 	}
 
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	if source.Timeout > 0 {
+		ctxWithTimeout, cancelWithTimeout := context.WithTimeout(ctx, source.Timeout)
+		ctx = ctxWithTimeout
+		cancel = cancelWithTimeout
+	}
+
 	// create new request
 	url := source.URL + source.QueryStr
 	outReq, err := http.NewRequest(source.Method, url, bytes.NewReader(source.Body))
@@ -102,7 +122,7 @@ func (source *RequestAgent) End() (*Response, error) {
 	}
 
 	// send to target
-	resp, err := source.client.Do(outReq)
+	resp, err := source.client.Do(outReq.WithContext(ctx))
 	if err != nil {
 		if err, ok := err.(net.Error); ok && err.Timeout() {
 			return nil, ErrTimeout

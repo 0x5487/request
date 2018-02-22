@@ -23,5 +23,5 @@ func DELETE(url string) *RequestAgent {
 }
 
 func SetTimeout(duration int64) {
-	_httpClient.Timeout = time.Duration(duration) * time.Second
+	_timeout = time.Duration(duration) * time.Second
 }
