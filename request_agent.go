@@ -3,6 +3,7 @@ package request
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"io"
@@ -23,6 +24,9 @@ func init() {
 	_httpClient = &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: 20,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: false,
+			},
 		},
 	}
 	_timeout = 30 * time.Second
