@@ -1,5 +1,7 @@
 # Request package for golang
 
+## The package uses superAgent style to handle http request.
+
 
 ### Usage
 
@@ -54,3 +56,22 @@ if resp.OK {
 }
 ```
 
+#### Use proxy
+
+```golang
+resp, err := request.
+    GET("/v1/hello").
+    SetProxyURL("http://10.2.3.4:8080").  // use proxy here
+    End()
+if err != nil {
+    return nil, err
+}
+if resp.OK {
+    // do something...
+    ....
+}
+```
+
+
+
+####  inspire by superAgent

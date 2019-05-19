@@ -1,27 +1,26 @@
 package request
 
-import "time"
-
-func New(method, url string) *RequestAgent {
-	return newRequestAgent(method, url)
+// New create a new RequestAgent instance
+func New() *Agent {
+	return newAgent()
 }
 
-func GET(url string) *RequestAgent {
-	return newRequestAgent("GET", url)
+// GET return RequestAgent that uses HTTP GET method with target URL
+func GET(url string) *Agent {
+	return newAgentWithClient(_httpClient).GET(url)
 }
 
-func POST(url string) *RequestAgent {
-	return newRequestAgent("POST", url)
+// POST return RequestAgent that uses HTTP POST method with target URL
+func POST(url string) *Agent {
+	return newAgentWithClient(_httpClient).POST(url)
 }
 
-func PUT(url string) *RequestAgent {
-	return newRequestAgent("PUT", url)
+// PUT return RequestAgent that uses HTTP PUT method with target URL
+func PUT(url string) *Agent {
+	return newAgentWithClient(_httpClient).PUT(url)
 }
 
-func DELETE(url string) *RequestAgent {
-	return newRequestAgent("DELETE", url)
-}
-
-func SetTimeout(duration int64) {
-	_timeout = time.Duration(duration) * time.Second
+// DELETE return RequestAgent that uses HTTP DELETE method with target URL
+func DELETE(url string) *Agent {
+	return newAgentWithClient(_httpClient).DELETE(url)
 }
