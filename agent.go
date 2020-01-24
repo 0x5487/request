@@ -16,14 +16,8 @@ import (
 )
 
 var (
-	_httpClient *http.Client
-	_timeout    time.Duration
-	// ErrTimeout means http request have been timeout
-	ErrTimeout = errors.New("request: request timeout")
-)
-
-func init() {
-	_httpClient = &http.Client{
+	// httpClient should be kept for reuse purpose
+	_httpClient *http.Client = &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: 20,
 			TLSClientConfig: &tls.Config{
@@ -31,11 +25,14 @@ func init() {
 			},
 		},
 	}
-	_timeout = 30 * time.Second
-}
+	_timeout time.Duration = 30 * time.Second
+
+	// ErrTimeout means http request have been timeout
+	ErrTimeout = errors.New("request: request timeout")
+)
 
 // Agent the main struct to handle all http requests
-type Agent struct {
+type agent struct {
 	client *http.Client
 	err    error
 
@@ -47,25 +44,25 @@ type Agent struct {
 	Timeout  time.Duration
 }
 
-func newAgent() *Agent {
-	agent := &Agent{
-		client: &http.Client{
-			Transport: &http.Transport{
-				MaxIdleConnsPerHost: 20,
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: false,
-				},
-			},
-		},
-		Header: map[string]string{},
-	}
-	agent.Header["Accept"] = "application/json"
-	agent.Timeout = _timeout
-	return agent
+// Agenter return represents an interface which handles request actions and do chain job
+type Agenter interface {
+	GET(targetURL string) Agenter
+	POST(targetURL string) Agenter
+	PUT(targetURL string) Agenter
+	DELETE(targetURL string) Agenter
+	Set(key, val string) Agenter
+	SetTimeout(timeout time.Duration) Agenter
+	SetProxyURL(proxyURL string) Agenter
+	SendBytes(bytes []byte) Agenter
+	SendJSON(v interface{}) Agenter
+	SendXML(v interface{}) Agenter
+	Send(body string) Agenter
+	Query(querystring string) Agenter
+	End() (*Response, error)
 }
 
-func newAgentWithClient(client *http.Client) *Agent {
-	agent := &Agent{
+func newAgentWithClient(client *http.Client) Agenter {
+	agent := agent{
 		client: client,
 		Header: map[string]string{},
 	}
@@ -74,13 +71,13 @@ func newAgentWithClient(client *http.Client) *Agent {
 	return agent
 }
 
-func (agent *Agent) getTransport() *http.Transport {
+func (agent agent) getTransport() *http.Transport {
 	trans, _ := agent.client.Transport.(*http.Transport)
 	return trans
 }
 
 // GET return Agent that uses HTTP GET method with target URL
-func (agent *Agent) GET(targetURL string) *Agent {
+func (agent agent) GET(targetURL string) Agenter {
 	agent.Method = "GET"
 	_, err := url.Parse(targetURL)
 	if err != nil {
@@ -91,7 +88,7 @@ func (agent *Agent) GET(targetURL string) *Agent {
 }
 
 // POST return Agent that uses HTTP POST method with target URL
-func (agent *Agent) POST(targetURL string) *Agent {
+func (agent agent) POST(targetURL string) Agenter {
 	agent.Method = "POST"
 	_, err := url.Parse(targetURL)
 	if err != nil {
@@ -102,7 +99,7 @@ func (agent *Agent) POST(targetURL string) *Agent {
 }
 
 // PUT return Agent that uses HTTP PUT method with target URL
-func (agent *Agent) PUT(targetURL string) *Agent {
+func (agent agent) PUT(targetURL string) Agenter {
 	agent.Method = "PUT"
 	_, err := url.Parse(targetURL)
 	if err != nil {
@@ -113,7 +110,7 @@ func (agent *Agent) PUT(targetURL string) *Agent {
 }
 
 // DELETE return Agent that uses HTTP PUT method with target URL
-func (agent *Agent) DELETE(targetURL string) *Agent {
+func (agent agent) DELETE(targetURL string) Agenter {
 	agent.Method = "DELETE"
 	_, err := url.Parse(targetURL)
 	if err != nil {
@@ -124,13 +121,13 @@ func (agent *Agent) DELETE(targetURL string) *Agent {
 }
 
 // Set that set HTTP header to agent
-func (agent *Agent) Set(key, val string) *Agent {
+func (agent agent) Set(key, val string) Agenter {
 	agent.Header[key] = val
 	return agent
 }
 
 // SetTimeout set timeout for agent.  The default value is 30 seconds.
-func (agent *Agent) SetTimeout(timeout time.Duration) *Agent {
+func (agent agent) SetTimeout(timeout time.Duration) Agenter {
 	if timeout > 0 {
 		agent.Timeout = timeout
 	}
@@ -138,7 +135,7 @@ func (agent *Agent) SetTimeout(timeout time.Duration) *Agent {
 }
 
 // SetProxyURL set the simple proxy with fixed proxy url
-func (agent *Agent) SetProxyURL(proxyURL string) *Agent {
+func (agent agent) SetProxyURL(proxyURL string) Agenter {
 	trans := agent.getTransport()
 	if trans == nil {
 		agent.err = errors.New("request: no transport")
@@ -152,13 +149,13 @@ func (agent *Agent) SetProxyURL(proxyURL string) *Agent {
 }
 
 // SendBytes send bytes to target URL
-func (agent *Agent) SendBytes(bytes []byte) *Agent {
+func (agent agent) SendBytes(bytes []byte) Agenter {
 	agent.Body = bytes
 	return agent
 }
 
 // SendJSON send json to target URL
-func (agent *Agent) SendJSON(v interface{}) *Agent {
+func (agent agent) SendJSON(v interface{}) Agenter {
 	agent.Set("Content-Type", "application/json")
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -169,7 +166,7 @@ func (agent *Agent) SendJSON(v interface{}) *Agent {
 }
 
 // SendXML send json to target URL
-func (agent *Agent) SendXML(v interface{}) *Agent {
+func (agent agent) SendXML(v interface{}) Agenter {
 	agent.Set("Content-Type", "application/xml")
 	b, err := xml.Marshal(v)
 	if err != nil {
@@ -180,20 +177,20 @@ func (agent *Agent) SendXML(v interface{}) *Agent {
 }
 
 // Send send string to target URL
-func (agent *Agent) Send(body string) *Agent {
+func (agent agent) Send(body string) Agenter {
 	agent.Set("Content-Type", "application/x-www-form-urlencoded")
 	agent.Body = []byte(body)
 	return agent
 }
 
 // Query set  querystring to target URL
-func (agent *Agent) Query(querystring string) *Agent {
+func (agent agent) Query(querystring string) Agenter {
 	agent.QueryStr = querystring
 	return agent
 }
 
 // End start execute agent
-func (agent *Agent) End() (*Response, error) {
+func (agent agent) End() (*Response, error) {
 	if agent.err != nil {
 		return nil, agent.err
 	}

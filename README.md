@@ -1,9 +1,9 @@
 # Request package for golang
 
-## The package uses superAgent style to handle http request.
+A human readable and simple request package for gopher
 
 
-### Usage
+## Usage
 
 #### GET example
 ```golang
@@ -13,8 +13,11 @@ resp, err := request.
 if err != nil {
     return nil, err
 }
+
+ 
 if resp.OK {
-    // do something...
+    // if response's http status is between 200 ~ 299, then `resp.OK` should be ok
+    // when success, do something...
     ....
 }
 ```
