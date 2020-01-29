@@ -5,7 +5,7 @@ A human readable and easy to use request package for Go
 ## Features
 
 * human readable and easy to use
-* goruntine safe
+* goroutine safe
 * timeout support (default is 30 seconds)
 * allow to set proxy
 
