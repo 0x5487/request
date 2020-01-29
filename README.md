@@ -1,11 +1,18 @@
-# Request package for golang
+# Request
 
-A human readable and simple request package for gopher
+A human readable and easy to use request package for Go
+
+## Features
+
+* human readable and easy to use
+* goruntine safe
+* timeout support (default is 30 seconds)
+* allow to set proxy
 
 
-## Usage
+## Usages
 
-#### GET example
+get request
 ```golang
 resp, err := request.
     GET("/v1/hello").
@@ -22,22 +29,26 @@ if resp.OK {
 }
 ```
 
-#### Send http header with Get example
+get request with header
+
 ```golang
 resp, err := request.
     GET("/v1/hello").
     Set("Authorization", "token") // your token
     End()
+    
 if err != nil {
     return nil, err
 }
+
 if resp.OK {
     // do something...
     ....
 }
 ```
 
-#### POST example
+post request
+
 ```golang
 form := url.Values{}
 form.Add("grant_type", "password")
@@ -59,7 +70,7 @@ if resp.OK {
 }
 ```
 
-#### Use proxy
+use proxy
 
 ```golang
 resp, err := request.
@@ -77,4 +88,4 @@ if resp.OK {
 
 
 
-####  inspire by superAgent
+inspire by superAgent
