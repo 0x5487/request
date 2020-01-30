@@ -19,7 +19,9 @@ var (
 	// httpClient should be kept for reuse purpose
 	_httpClient *http.Client = &http.Client{
 		Transport: &http.Transport{
-			MaxIdleConnsPerHost: 20,
+			MaxIdleConnsPerHost: 100,
+			MaxIdleConns:        100,
+			IdleConnTimeout:     90 * time.Second,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: false,
 			},
