@@ -25,7 +25,6 @@ var (
 			},
 		},
 	}
-	_timeout time.Duration = 30 * time.Second
 
 	// ErrTimeout means http request have been timeout
 	ErrTimeout = errors.New("request: request timeout")
@@ -33,15 +32,14 @@ var (
 
 // Agent the main struct to handle all http requests
 type agent struct {
-	client *http.Client
-	err    error
-
-	URL      string
-	Method   string
-	Header   map[string]string
-	QueryStr string
-	Body     []byte
-	Timeout  time.Duration
+	client   *http.Client
+	err      error
+	url      string
+	method   string
+	header   map[string]string
+	queryStr string
+	body     []byte
+	timeout  time.Duration
 }
 
 // Agenter return represents an interface which handles request actions and do chain job
@@ -51,6 +49,8 @@ type Agenter interface {
 	PUT(targetURL string) Agenter
 	DELETE(targetURL string) Agenter
 	Set(key, val string) Agenter
+	SetClient(client *http.Client) Agenter
+	Timeout() time.Duration
 	SetTimeout(timeout time.Duration) Agenter
 	SetProxyURL(proxyURL string) Agenter
 	SendBytes(bytes []byte) Agenter
@@ -64,10 +64,10 @@ type Agenter interface {
 func newAgentWithClient(client *http.Client) Agenter {
 	agent := agent{
 		client: client,
-		Header: map[string]string{},
+		header: map[string]string{},
 	}
-	agent.Header["Accept"] = "application/json"
-	agent.Timeout = _timeout
+	agent.header["Accept"] = "application/json"
+	agent.timeout = 30 * time.Second
 	return agent
 }
 
@@ -78,58 +78,69 @@ func (agent agent) getTransport() *http.Transport {
 
 // GET return Agent that uses HTTP GET method with target URL
 func (agent agent) GET(targetURL string) Agenter {
-	agent.Method = "GET"
+	agent.method = "GET"
 	_, err := url.Parse(targetURL)
 	if err != nil {
 		agent.err = err
 	}
-	agent.URL = targetURL
+	agent.url = targetURL
 	return agent
 }
 
 // POST return Agent that uses HTTP POST method with target URL
 func (agent agent) POST(targetURL string) Agenter {
-	agent.Method = "POST"
+	agent.method = "POST"
 	_, err := url.Parse(targetURL)
 	if err != nil {
 		agent.err = err
 	}
-	agent.URL = targetURL
+	agent.url = targetURL
 	return agent
 }
 
 // PUT return Agent that uses HTTP PUT method with target URL
 func (agent agent) PUT(targetURL string) Agenter {
-	agent.Method = "PUT"
+	agent.method = "PUT"
 	_, err := url.Parse(targetURL)
 	if err != nil {
 		agent.err = err
 	}
-	agent.URL = targetURL
+	agent.url = targetURL
 	return agent
 }
 
 // DELETE return Agent that uses HTTP PUT method with target URL
 func (agent agent) DELETE(targetURL string) Agenter {
-	agent.Method = "DELETE"
+	agent.method = "DELETE"
 	_, err := url.Parse(targetURL)
 	if err != nil {
 		agent.err = err
 	}
-	agent.URL = targetURL
+	agent.url = targetURL
 	return agent
 }
 
 // Set that set HTTP header to agent
 func (agent agent) Set(key, val string) Agenter {
-	agent.Header[key] = val
+	agent.header[key] = val
 	return agent
+}
+
+// SetClient allow to set a custom client to agent
+func (agent agent) SetClient(client *http.Client) Agenter {
+	agent.client = client
+	return agent
+}
+
+// Timeout returns timeout value. The default value is 30 seconds.
+func (agent agent) Timeout() time.Duration {
+	return agent.timeout
 }
 
 // SetTimeout set timeout for agent.  The default value is 30 seconds.
 func (agent agent) SetTimeout(timeout time.Duration) Agenter {
 	if timeout > 0 {
-		agent.Timeout = timeout
+		agent.timeout = timeout
 	}
 	return agent
 }
@@ -150,7 +161,7 @@ func (agent agent) SetProxyURL(proxyURL string) Agenter {
 
 // SendBytes send bytes to target URL
 func (agent agent) SendBytes(bytes []byte) Agenter {
-	agent.Body = bytes
+	agent.body = bytes
 	return agent
 }
 
@@ -161,7 +172,7 @@ func (agent agent) SendJSON(v interface{}) Agenter {
 	if err != nil {
 		agent.err = err
 	}
-	agent.Body = b
+	agent.body = b
 	return agent
 }
 
@@ -172,20 +183,20 @@ func (agent agent) SendXML(v interface{}) Agenter {
 	if err != nil {
 		agent.err = err
 	}
-	agent.Body = b
+	agent.body = b
 	return agent
 }
 
 // Send send string to target URL
 func (agent agent) Send(body string) Agenter {
 	agent.Set("Content-Type", "application/x-www-form-urlencoded")
-	agent.Body = []byte(body)
+	agent.body = []byte(body)
 	return agent
 }
 
 // Query set  querystring to target URL
 func (agent agent) Query(querystring string) Agenter {
-	agent.QueryStr = querystring
+	agent.queryStr = querystring
 	return agent
 }
 
@@ -199,21 +210,21 @@ func (agent agent) End() (*Response, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if agent.Timeout > 0 {
-		ctxWithTimeout, cancelWithTimeout := context.WithTimeout(ctx, agent.Timeout)
+	if agent.timeout > 0 {
+		ctxWithTimeout, cancelWithTimeout := context.WithTimeout(ctx, agent.timeout)
 		ctx = ctxWithTimeout
 		cancel = cancelWithTimeout
 	}
 
 	// create new request
-	url := agent.URL + agent.QueryStr
-	outReq, err := http.NewRequest(agent.Method, url, bytes.NewReader(agent.Body))
+	url := agent.url + agent.queryStr
+	outReq, err := http.NewRequest(agent.method, url, bytes.NewReader(agent.body))
 	if err != nil {
 		return nil, err
 	}
 
 	// copy Header
-	for k, val := range agent.Header {
+	for k, val := range agent.header {
 		outReq.Header.Add(k, val)
 	}
 
