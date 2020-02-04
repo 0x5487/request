@@ -124,7 +124,17 @@ func (agent agent) DELETE(targetURL string) Agenter {
 
 // Set that set HTTP header to agent
 func (agent agent) Set(key, val string) Agenter {
-	agent.header[key] = val
+	newHeader := map[string]string{}
+
+	if agent.header != nil {
+		for k, val := range agent.header {
+			newHeader[k] = val
+		}
+	}
+
+	newHeader[key] = val
+	agent.header = newHeader
+
 	return agent
 }
 
