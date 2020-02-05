@@ -12,12 +12,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
 var (
 	// httpClient should be kept for reuse purpose
-	_httpClient *http.Client = &http.Client{
+	_httpClient = &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: 100,
 			MaxIdleConns:        100,
@@ -27,221 +28,201 @@ var (
 			},
 		},
 	}
+	_timeout = 30 * time.Second
 
 	// ErrTimeout means http request have been timeout
 	ErrTimeout = errors.New("request: request timeout")
 )
 
 // Agent the main struct to handle all http requests
-type agent struct {
-	client   *http.Client
-	err      error
-	url      string
-	method   string
-	header   map[string]string
-	queryStr string
-	body     []byte
-	timeout  time.Duration
+type Agent struct {
+	client *http.Client
+	err    error
+
+	URL     string
+	Method  string
+	Header  map[string]string
+	Body    []byte
+	Timeout time.Duration
 }
 
-// Agenter return represents an interface which handles request actions and do chain job
-type Agenter interface {
-	GET(targetURL string) Agenter
-	POST(targetURL string) Agenter
-	PUT(targetURL string) Agenter
-	DELETE(targetURL string) Agenter
-	Set(key, val string) Agenter
-	SetClient(client *http.Client) Agenter
-	Timeout() time.Duration
-	SetTimeout(timeout time.Duration) Agenter
-	SetProxyURL(proxyURL string) Agenter
-	SendBytes(bytes []byte) Agenter
-	SendJSON(v interface{}) Agenter
-	SendXML(v interface{}) Agenter
-	Send(body string) Agenter
-	Query(querystring string) Agenter
-	End() (*Response, error)
-}
-
-func newAgentWithClient(client *http.Client) Agenter {
-	agent := agent{
+func newAgentWithClient(client *http.Client) Agent {
+	agent := Agent{
 		client: client,
-		header: map[string]string{},
+		Header: map[string]string{},
 	}
-	agent.header["Accept"] = "application/json"
-	agent.timeout = 30 * time.Second
+	agent.Header["Accept"] = "application/json"
+	agent.Timeout = _timeout
 	return agent
 }
 
-func (agent agent) getTransport() *http.Transport {
-	trans, _ := agent.client.Transport.(*http.Transport)
+func (a Agent) getTransport() *http.Transport {
+	trans, _ := a.client.Transport.(*http.Transport)
 	return trans
 }
 
-// GET return Agent that uses HTTP GET method with target URL
-func (agent agent) GET(targetURL string) Agenter {
-	agent.method = "GET"
+// SetMethod return Agent that uses HTTP method with target URL
+func (a Agent) SetMethod(method, targetURL string) Agent {
+	a.Method = strings.ToUpper(method)
+
 	_, err := url.Parse(targetURL)
 	if err != nil {
-		agent.err = err
+		a.err = err
 	}
-	agent.url = targetURL
-	return agent
+	a.URL = targetURL
+	return a
+}
+
+// SetClient return Agent with target URL
+func (a Agent) SetClient(client *http.Client) Agent {
+	a.client = client
+	return a
+}
+
+// GET return Agent that uses HTTP GET method with target URL
+func (a Agent) GET(targetURL string) Agent {
+	a.Method = "GET"
+	_, err := url.Parse(targetURL)
+	if err != nil {
+		a.err = err
+	}
+	a.URL = targetURL
+	return a
 }
 
 // POST return Agent that uses HTTP POST method with target URL
-func (agent agent) POST(targetURL string) Agenter {
-	agent.method = "POST"
+func (a Agent) POST(targetURL string) Agent {
+	a.Method = "POST"
 	_, err := url.Parse(targetURL)
 	if err != nil {
-		agent.err = err
+		a.err = err
 	}
-	agent.url = targetURL
-	return agent
+	a.URL = targetURL
+	return a
 }
 
 // PUT return Agent that uses HTTP PUT method with target URL
-func (agent agent) PUT(targetURL string) Agenter {
-	agent.method = "PUT"
+func (a Agent) PUT(targetURL string) Agent {
+	a.Method = "PUT"
 	_, err := url.Parse(targetURL)
 	if err != nil {
-		agent.err = err
+		a.err = err
 	}
-	agent.url = targetURL
-	return agent
+	a.URL = targetURL
+	return a
 }
 
 // DELETE return Agent that uses HTTP PUT method with target URL
-func (agent agent) DELETE(targetURL string) Agenter {
-	agent.method = "DELETE"
+func (a Agent) DELETE(targetURL string) Agent {
+	a.Method = "DELETE"
 	_, err := url.Parse(targetURL)
 	if err != nil {
-		agent.err = err
+		a.err = err
 	}
-	agent.url = targetURL
-	return agent
+	a.URL = targetURL
+	return a
 }
 
 // Set that set HTTP header to agent
-func (agent agent) Set(key, val string) Agenter {
+func (a Agent) Set(key, val string) Agent {
 	newHeader := map[string]string{}
 
-	if agent.header != nil {
-		for k, val := range agent.header {
+	if a.Header != nil {
+		for k, val := range a.Header {
 			newHeader[k] = val
 		}
 	}
 
 	newHeader[key] = val
-	agent.header = newHeader
+	a.Header = newHeader
 
-	return agent
-}
-
-// SetClient allow to set a custom client to agent
-func (agent agent) SetClient(client *http.Client) Agenter {
-	agent.client = client
-	return agent
-}
-
-// Timeout returns timeout value. The default value is 30 seconds.
-func (agent agent) Timeout() time.Duration {
-	return agent.timeout
+	return a
 }
 
 // SetTimeout set timeout for agent.  The default value is 30 seconds.
-func (agent agent) SetTimeout(timeout time.Duration) Agenter {
+func (a Agent) SetTimeout(timeout time.Duration) Agent {
 	if timeout > 0 {
-		agent.timeout = timeout
+		a.Timeout = timeout
 	}
-	return agent
+	return a
 }
 
 // SetProxyURL set the simple proxy with fixed proxy url
-func (agent agent) SetProxyURL(proxyURL string) Agenter {
-	trans := agent.getTransport()
+func (a Agent) SetProxyURL(proxyURL string) Agent {
+	trans := a.getTransport()
 	if trans == nil {
-		agent.err = errors.New("request: no transport")
+		a.err = errors.New("request: no transport")
 	}
 	u, err := url.Parse(proxyURL)
 	if err != nil {
-		agent.err = err
+		a.err = err
 	}
 	trans.Proxy = http.ProxyURL(u)
-	return agent
+	return a
 }
 
 // SendBytes send bytes to target URL
-func (agent agent) SendBytes(bytes []byte) Agenter {
-	agent.body = bytes
-	return agent
+func (a Agent) SendBytes(bytes []byte) Agent {
+	a.Body = bytes
+	return a
 }
 
 // SendJSON send json to target URL
-func (agent agent) SendJSON(v interface{}) Agenter {
-	agent.Set("Content-Type", "application/json")
+func (a Agent) SendJSON(v interface{}) Agent {
+	newAgent := a.Set("Content-Type", "application/json")
 	b, err := json.Marshal(v)
 	if err != nil {
-		agent.err = err
+		newAgent.err = err
 	}
-	agent.body = b
-	return agent
+	return newAgent.SendBytes(b)
 }
 
 // SendXML send json to target URL
-func (agent agent) SendXML(v interface{}) Agenter {
-	agent.Set("Content-Type", "application/xml")
+func (a Agent) SendXML(v interface{}) Agent {
+	newAgent := a.Set("Content-Type", "application/xml")
 	b, err := xml.Marshal(v)
 	if err != nil {
-		agent.err = err
+		newAgent.err = err
 	}
-	agent.body = b
-	return agent
+	return newAgent.SendBytes(b)
 }
 
 // Send send string to target URL
-func (agent agent) Send(body string) Agenter {
-	agent.Set("Content-Type", "application/x-www-form-urlencoded")
-	agent.body = []byte(body)
-	return agent
-}
-
-// Query set  querystring to target URL
-func (agent agent) Query(querystring string) Agenter {
-	agent.queryStr = querystring
-	return agent
+func (a Agent) Send(body string) Agent {
+	newAgent := a.Set("Content-Type", "application/x-www-form-urlencoded")
+	return newAgent.SendBytes([]byte(body))
 }
 
 // End start execute agent
-func (agent agent) End() (*Response, error) {
-	if agent.err != nil {
-		return nil, agent.err
+func (a Agent) End() (*Response, error) {
+	if a.err != nil {
+		return nil, a.err
 	}
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if agent.timeout > 0 {
-		ctxWithTimeout, cancelWithTimeout := context.WithTimeout(ctx, agent.timeout)
+	if a.Timeout > 0 {
+		ctxWithTimeout, cancelWithTimeout := context.WithTimeout(ctx, a.Timeout)
 		ctx = ctxWithTimeout
 		cancel = cancelWithTimeout
 	}
 
 	// create new request
-	url := agent.url + agent.queryStr
-	outReq, err := http.NewRequest(agent.method, url, bytes.NewReader(agent.body))
+	url := a.URL
+	outReq, err := http.NewRequest(a.Method, url, bytes.NewReader(a.Body))
 	if err != nil {
 		return nil, err
 	}
 
 	// copy Header
-	for k, val := range agent.header {
+	for k, val := range a.Header {
 		outReq.Header.Add(k, val)
 	}
 
 	// send to target
-	resp, err := agent.client.Do(outReq.WithContext(ctx))
+	resp, err := a.client.Do(outReq.WithContext(ctx))
 	if err != nil {
 		if err, ok := err.(net.Error); ok && err.Timeout() {
 			return nil, ErrTimeout
